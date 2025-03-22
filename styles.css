@@ -294,20 +294,23 @@ footer {
         grid-template-columns: 1fr;
     }
     
-    /* Mobile iframe improvements */
+    /* Mobile iframe improvements - simplified approach */
     .iframe-container {
-        overflow: visible;
+        overflow: hidden;
         -webkit-overflow-scrolling: touch;
-        width: 100%;
-        max-width: 100%;
+        width: 100vw;
+        position: relative;
+        left: 50%;
+        right: 50%;
+        margin-left: -50vw;
+        margin-right: -50vw;
     }
     
     .iframe-container iframe {
         height: 600px;
-        transform: scale(0.85);
-        transform-origin: top center;
-        width: 117%;
-        margin-left: -8.5%;
+        transform: none; /* Remove scaling */
+        width: 100%; /* Simple 100% width */
+        margin-left: 0; /* Remove negative margin */
     }
     
     .email-service-section {
@@ -320,8 +323,8 @@ footer {
 @media (max-width: 480px) {
     .iframe-container iframe {
         height: 500px;
-        transform: scale(0.75);
-        width: 133%;
-        margin-left: -16.5%;
+        transform: none; /* Remove scaling */
+        width: 100%; /* Simple 100% width */
+        margin-left: 0; /* Remove negative margin */
     }
 } 
