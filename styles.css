@@ -238,6 +238,15 @@ footer {
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    position: relative;
+    padding-bottom: 10px;
+}
+
+.iframe-container iframe {
+    width: 100%;
+    height: 700px;
+    border: none;
+    display: block;
 }
 
 /* Responsive Design */
@@ -260,5 +269,33 @@ footer {
     
     .services-grid {
         grid-template-columns: 1fr;
+    }
+    
+    /* Mobile iframe improvements */
+    .iframe-container {
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .iframe-container iframe {
+        height: 600px;
+        transform: scale(0.95);
+        transform-origin: top center;
+        width: 105%;
+        margin-left: -2.5%;
+    }
+    
+    .email-service-section {
+        padding: 40px 10px;
+    }
+}
+
+/* Small mobile devices */
+@media (max-width: 480px) {
+    .iframe-container iframe {
+        height: 500px;
+        transform: scale(0.9);
+        width: 111%;
+        margin-left: -5.5%;
     }
 } 
