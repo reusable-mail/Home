@@ -10,6 +10,7 @@ body {
     line-height: 1.6;
     color: #333;
     background-color: #f8f9fa;
+    overflow-x: hidden; /* Prevent horizontal scrolling */
 }
 
 a {
@@ -216,8 +217,14 @@ footer {
 /* Email Service Section */
 .email-service-section {
     text-align: center;
-    padding: 100px 20px;
+    padding: 50px 0 0 0; /* Reduced top padding, removed other padding */
     background-color: #f8f9fa;
+    width: 100vw; /* Full viewport width */
+    position: relative;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
 }
 
 .email-service-section h2 {
@@ -233,13 +240,13 @@ footer {
 
 .iframe-container {
     width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
-    border-radius: 8px;
+    max-width: 100%;
+    margin: 0;
+    border-radius: 0;
     overflow: hidden;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    box-shadow: none;
     position: relative;
-    padding-bottom: 10px;
+    padding-bottom: 0;
 }
 
 .iframe-container iframe {
@@ -286,7 +293,7 @@ footer {
     }
     
     .email-service-section {
-        padding: 40px 10px;
+        padding: 40px 0;
     }
 }
 
