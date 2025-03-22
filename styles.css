@@ -11,6 +11,16 @@ body {
     color: #333;
     background-color: #f8f9fa;
     overflow-x: hidden; /* Prevent horizontal scrolling */
+    margin: 0;
+    padding: 0;
+}
+
+main {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: visible;
 }
 
 a {
@@ -217,24 +227,28 @@ footer {
 /* Email Service Section */
 .email-service-section {
     text-align: center;
-    padding: 50px 0 0 0; /* Reduced top padding, removed other padding */
+    padding: 0; /* Remove all padding */
+    margin: 0; /* Remove all margins */
     background-color: #f8f9fa;
-    width: 100vw; /* Full viewport width */
+    width: 100vw;
+    max-width: 100vw; /* Ensure no overflow */
     position: relative;
     left: 50%;
     right: 50%;
     margin-left: -50vw;
     margin-right: -50vw;
+    overflow: hidden; /* Contain everything */
 }
 
 .email-service-section h2 {
-    margin-bottom: 20px;
+    margin-top: 30px; /* Add some space at the top for the heading */
+    margin-bottom: 10px;
     font-size: 2.5rem;
 }
 
 .email-service-section p {
     max-width: 800px;
-    margin: 0 auto 30px;
+    margin: 0 auto 20px;
     font-size: 1.1rem;
 }
 
@@ -242,11 +256,11 @@ footer {
     width: 100%;
     max-width: 100%;
     margin: 0;
+    padding: 0;
     border-radius: 0;
-    overflow: hidden;
+    overflow: visible; /* Allow content to be visible */
     box-shadow: none;
     position: relative;
-    padding-bottom: 0;
 }
 
 .iframe-container iframe {
@@ -254,6 +268,8 @@ footer {
     height: 700px;
     border: none;
     display: block;
+    margin: 0;
+    padding: 0;
 }
 
 /* Responsive Design */
@@ -280,8 +296,10 @@ footer {
     
     /* Mobile iframe improvements */
     .iframe-container {
-        overflow: auto;
+        overflow: visible;
         -webkit-overflow-scrolling: touch;
+        width: 100%;
+        max-width: 100%;
     }
     
     .iframe-container iframe {
@@ -293,7 +311,8 @@ footer {
     }
     
     .email-service-section {
-        padding: 40px 0;
+        padding: 0;
+        margin: 0;
     }
 }
 
