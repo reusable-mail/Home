@@ -279,10 +279,10 @@ footer {
     
     .iframe-container iframe {
         height: 600px;
-        transform: scale(0.95);
+        transform: scale(0.85);
         transform-origin: top center;
-        width: 105%;
-        margin-left: -2.5%;
+        width: 117%;
+        margin-left: -8.5%;
     }
     
     .email-service-section {
@@ -294,8 +294,8 @@ footer {
 @media (max-width: 480px) {
     .iframe-container iframe {
         height: 500px;
-        transform: scale(0.9);
-        width: 111%;
-        margin-left: -5.5%;
+        transform: scale(0.75);
+        width: 133%;
+        margin-left: -16.5%;
     }
 } 
