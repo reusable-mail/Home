@@ -15,15 +15,29 @@ html, body, main, .email-service-section, .iframe-container {
     width: 100vw !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
+    position: relative !important;
 }
 
 .iframe-container iframe {
-    width: 100% !important;
-    margin: 0 !important;
+    width: 150% !important; /* Make wider to compensate for scale */
+    margin-left: -25% !important; /* Center the wider content */
     padding: 0 !important;
     border: none !important;
     display: block !important;
     box-sizing: border-box !important;
+    transform: scale(0.65) !important; /* Significantly decrease zoom */
+    transform-origin: top center !important; /* Scale from the top center */
+    height: 800px !important; /* Increase height to show more content */
+}
+
+/* For extra small devices - scale even more */
+@media (max-width: 400px) {
+    .iframe-container iframe {
+        width: 180% !important; /* Even wider for smaller screens */
+        margin-left: -40% !important; /* Center the wider content */
+        transform: scale(0.55) !important; /* Scale down more */
+        height: 900px !important; /* More height for small screens */
+    }
 }
 
 /* Ensure the section itself spans edge to edge */

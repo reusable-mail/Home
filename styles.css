@@ -329,9 +329,10 @@ footer {
 /* Small mobile devices */
 @media (max-width: 480px) {
     .iframe-container iframe {
-        height: 500px;
-        transform: none; /* Remove scaling */
-        width: 100%; /* Simple 100% width */
-        margin-left: 0; /* Remove negative margin */
+        height: 600px;
+        width: 150%; /* Make wider to compensate for scale */
+        margin-left: -25%; /* Center the wider content */
+        transform: scale(0.65); /* Decrease zoom for better view */
+        transform-origin: top center; /* Scale from the top center */
     }
 } 
