@@ -130,29 +130,232 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Periodic clipboard checking (if permissions allow)
-    const startClipboardCheck = () => {
-        // Check for encrypted inbox URLs in clipboard
-        const checkClipboard = () => {
-            if (navigator.clipboard && navigator.clipboard.readText) {
-                navigator.clipboard.readText()
-                    .then(clipText => {
-                        // Only process if the content is new and looks like an inbox URL
-                        if (clipText !== lastClipboardContent && 
-                            (clipText.includes('private.reusable.email') || 
-                             clipText.includes('/AACG-'))) {
-                            lastClipboardContent = clipText;
-                            urlInput.value = clipText;
-                            highlightInput();
+    // URL detection via iframe load events and window URL handling
+    if (emailIframe) {
+        // Monitor the iframe for navigation changes
+        let lastIframeSrc = emailIframe.src;
+        
+        // Function to check if the iframe URL has changed
+        const checkIframeChange = () => {
+            try {
+                if (emailIframe.src !== lastIframeSrc) {
+                    lastIframeSrc = emailIframe.src;
+                    if (emailIframe.src.includes('private.reusable.email') || 
+                        emailIframe.src.includes('/AACG-') || 
+                        emailIframe.src.includes('/QRYD-')) {
+                        urlInput.value = emailIframe.src;
+                        highlightInput();
+                    }
+                }
+                
+                // Try to get any visible links inside the iframe that might be inbox URLs
+                try {
+                    // This might fail due to cross-origin restrictions
+                    const iframeDocument = emailIframe.contentDocument || emailIframe.contentWindow.document;
+                    const inboxLinks = iframeDocument.querySelectorAll('a[href*="private.reusable.email"]');
+                    
+                    if (inboxLinks && inboxLinks.length > 0) {
+                        // Use the first valid inbox link found
+                        for (let link of inboxLinks) {
+                            if (link.href && 
+                                (link.href.includes('/AACG-') || link.href.includes('/QRYD-'))) {
+                                urlInput.value = link.href;
+                                highlightInput();
+                                break;
+                            }
                         }
-                    })
-                    .catch(err => {
-                        // Silent fail - clipboard access might be denied
-                        console.log('Clipboard access denied or empty');
-                    });
+                    }
+                } catch (e) {
+                    // Expected to fail due to cross-origin policy
+                    // console.log('Could not access iframe content due to security restrictions');
+                }
+            } catch (e) {
+                // Silently fail
             }
         };
         
+        // Check the iframe periodically for changes (every 1 second)
+        setInterval(checkIframeChange, 1000);
+        
+        // Set up a MutationObserver to watch for changes in the iframe document title
+        // This helps detect when an inbox is loaded
+        emailIframe.addEventListener('load', function() {
+            try {
+                // When iframe loads, check URL parameters in parent window
+                const urlParams = new URLSearchParams(window.location.search);
+                const inboxParam = urlParams.get('inbox');
+                
+                if (inboxParam) {
+                    // If there's an inbox parameter, show it in the input field
+                    const fullUrl = `https://private.reusable.email/${inboxParam}`;
+                    urlInput.value = fullUrl;
+                    highlightInput();
+                }
+            } catch (e) {
+                console.log('Could not check iframe content', e);
+            }
+            
+            // Also check if the current URL in browser contains inbox identifier
+            if (window.location.href.includes('private.reusable.email') || 
+                window.location.href.includes('/AACG-') || 
+                window.location.href.includes('/QRYD-')) {
+                urlInput.value = window.location.href;
+                highlightInput();
+            }
+        });
+    }
+    
+    // Add functionality to detect URL changes from iframe navigation
+    function checkForInboxUrls() {
+        // Check if current URL has changed to an inbox URL
+        if (window.location.href.includes('private.reusable.email') || 
+            window.location.href.includes('/AACG-') || 
+            window.location.href.includes('/QRYD-')) {
+            urlInput.value = window.location.href;
+            highlightInput();
+            return true;
+        }
+        
+        // Check the document.referrer in case we navigated from an inbox page
+        if (document.referrer.includes('private.reusable.email') || 
+            document.referrer.includes('/AACG-') || 
+            document.referrer.includes('/QRYD-')) {
+            urlInput.value = document.referrer;
+            highlightInput();
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // Run URL check on page load
+    checkForInboxUrls();
+    
+    // Check URL when iframe receives focus (might indicate navigation happened)
+    emailIframe.addEventListener('focus', checkForInboxUrls);
+    
+    // Override default URL detection with URL hash detection
+    window.addEventListener('hashchange', function() {
+        if (window.location.hash && 
+            (window.location.hash.includes('AACG-') || 
+             window.location.hash.includes('QRYD-'))) {
+            const hashValue = window.location.hash.substring(1);
+            if (hashValue.includes('private.reusable.email')) {
+                urlInput.value = hashValue;
+            } else {
+                urlInput.value = `https://private.reusable.email/${hashValue}`;
+            }
+            highlightInput();
+        }
+    });
+    
+    // Function to check for displayed URLs on the page
+    function scanForVisibleInboxURLs() {
+        // Look for any text nodes that might contain a URL pattern
+        const textNodes = [];
+        const walker = document.createTreeWalker(
+            document.body,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        );
+
+        let node;
+        while (node = walker.nextNode()) {
+            textNodes.push(node);
+        }
+
+        // Check each text node for URL patterns
+        for (const node of textNodes) {
+            const text = node.nodeValue;
+            if (text) {
+                // Check for reusable.email patterns
+                if (text.includes('private.reusable.email') || 
+                    text.includes('/AACG-') || 
+                    text.includes('/QRYD-')) {
+                    
+                    // Find the full URL within the text
+                    const urlMatch = text.match(/(https?:\/\/private\.reusable\.email\/[^\s'"]+)/);
+                    if (urlMatch && urlMatch[1]) {
+                        urlInput.value = urlMatch[1];
+                        highlightInput();
+                        return true;
+                    }
+                    
+                    // Check for ID patterns without the full URL
+                    const idMatch = text.match(/([A-Z]+-\d+-[A-Z]+)/);
+                    if (idMatch && idMatch[1]) {
+                        urlInput.value = `https://private.reusable.email/${idMatch[1]}`;
+                        highlightInput();
+                        return true;
+                    }
+                }
+                
+                // Check for email format like "QRYD-8938-RNAY@private.reusable.email"
+                const emailMatch = text.match(/([A-Z]+-\d+-[A-Z]+@private\.reusable\.email)/);
+                if (emailMatch && emailMatch[1]) {
+                    const emailParts = emailMatch[1].split('@');
+                    if (emailParts.length > 1) {
+                        urlInput.value = `https://private.reusable.email/${emailParts[0]}`;
+                        highlightInput();
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    // Scan for URLs on the page periodically
+    setInterval(scanForVisibleInboxURLs, 2000);
+    
+    // Also scan when the page visibility changes (user returns to the tab)
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            scanForVisibleInboxURLs();
+            checkForInboxUrls();
+            checkClipboard();
+        }
+    });
+    
+    // Enhance clipboard check to detect specific formats seen in the screenshots
+    const checkClipboard = () => {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+            navigator.clipboard.readText()
+                .then(clipText => {
+                    // Process only if the content is new
+                    if (clipText !== lastClipboardContent) {
+                        lastClipboardContent = clipText;
+                        
+                        // Check for various URL patterns 
+                        if (clipText.includes('private.reusable.email') || 
+                            clipText.includes('/AACG-') || 
+                            clipText.includes('/QRYD-')) {
+                            urlInput.value = clipText;
+                            highlightInput();
+                        }
+                        // Check for the specific format seen in screenshots
+                        else if (clipText.match(/[A-Z]+-[0-9]+-[A-Z]+@private\.reusable\.email/)) {
+                            // It's an email address format, convert to URL
+                            const emailParts = clipText.split('@');
+                            if (emailParts.length > 1) {
+                                const urlFromEmail = `https://private.reusable.email/${emailParts[0]}`;
+                                urlInput.value = urlFromEmail;
+                                highlightInput();
+                            }
+                        }
+                    }
+                })
+                .catch(err => {
+                    // Silent fail - clipboard access might be denied
+                    console.log('Clipboard access denied or empty');
+                });
+        }
+    };
+    
+    // Periodic clipboard checking (if permissions allow)
+    const startClipboardCheck = () => {
         // Check immediately
         checkClipboard();
         
