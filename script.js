@@ -113,16 +113,86 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Allow users to paste URL from clipboard
+    // Auto-detection for encrypted inbox URL
+    const emailIframe = document.querySelector('.iframe-container iframe');
+    let clipboardCheckInterval;
+    let lastClipboardContent = '';
+    
+    // Setup message listener for potential messages from iframe
+    window.addEventListener('message', function(event) {
+        // Verify sender origin for security (should match reusable.email domain)
+        if (event.origin.includes('reusable.email')) {
+            if (event.data && typeof event.data === 'string' && event.data.includes('private.reusable.email')) {
+                // Found a URL in the message, update the input field
+                urlInput.value = event.data;
+                highlightInput();
+            }
+        }
+    });
+    
+    // Periodic clipboard checking (if permissions allow)
+    const startClipboardCheck = () => {
+        // Check for encrypted inbox URLs in clipboard
+        const checkClipboard = () => {
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                navigator.clipboard.readText()
+                    .then(clipText => {
+                        // Only process if the content is new and looks like an inbox URL
+                        if (clipText !== lastClipboardContent && 
+                            (clipText.includes('private.reusable.email') || 
+                             clipText.includes('/AACG-'))) {
+                            lastClipboardContent = clipText;
+                            urlInput.value = clipText;
+                            highlightInput();
+                        }
+                    })
+                    .catch(err => {
+                        // Silent fail - clipboard access might be denied
+                        console.log('Clipboard access denied or empty');
+                    });
+            }
+        };
+        
+        // Check immediately
+        checkClipboard();
+        
+        // Set up interval for checking (every 2 seconds)
+        clipboardCheckInterval = setInterval(checkClipboard, 2000);
+    };
+    
+    // Function to visually highlight the input when a URL is auto-detected
+    const highlightInput = () => {
+        // Briefly highlight input to show it was auto-filled
+        urlInput.style.backgroundColor = '#f0f9ff';
+        urlInput.style.borderColor = '#007bff';
+        
+        setTimeout(() => {
+            urlInput.style.backgroundColor = '';
+            // Keep border highlighted if there's content
+            if (!urlInput.value.trim()) {
+                urlInput.style.borderColor = '';
+            }
+        }, 1500);
+    };
+    
+    // Attempt to read from clipboard when user interacts with the page
+    document.addEventListener('click', function() {
+        if (!clipboardCheckInterval) {
+            startClipboardCheck();
+        }
+    });
+    
+    // Handle click on input field
     urlInput.addEventListener('click', function() {
         if (urlInput.value === '' || urlInput.value === urlInput.placeholder) {
-            // Try to read from clipboard if input is empty
+            // Try to read from clipboard
             if (navigator.clipboard && navigator.clipboard.readText) {
                 navigator.clipboard.readText()
                     .then(clipText => {
                         // Only auto-fill if it looks like a reusable.email URL
                         if (clipText.includes('reusable.email') || 
-                            clipText.includes('private.reusable.email')) {
+                            clipText.includes('private.reusable.email') ||
+                            clipText.includes('/AACG-')) {
                             urlInput.value = clipText;
                         }
                     })
@@ -131,6 +201,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log('Clipboard access denied or empty');
                     });
             }
+        }
+        // Select all text when clicking on the input if it already has content
+        else {
+            urlInput.select();
+        }
+    });
+    
+    // Clear interval when page is unloaded
+    window.addEventListener('beforeunload', function() {
+        if (clipboardCheckInterval) {
+            clearInterval(clipboardCheckInterval);
         }
     });
 }); 

@@ -276,10 +276,10 @@ footer {
 
 /* Email Service Section - URL Container */
 .url-container {
-    width: 90%;
-    max-width: 1000px;
+    width: 95%;
+    max-width: 1200px;
     margin: 20px auto;
-    padding: 15px;
+    padding: 20px;
     background-color: white;
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
@@ -288,36 +288,46 @@ footer {
 
 .url-instructions {
     margin-bottom: 15px;
-    font-size: 1rem;
+    font-size: 1.1rem;
     color: #555;
+    font-weight: 500;
 }
 
 .url-input-group {
     display: flex;
     width: 100%;
-    margin-bottom: 10px;
+    margin-bottom: 15px;
 }
 
 .inbox-url-input {
     flex: 1;
-    padding: 12px 15px;
-    border: 1px solid #ddd;
-    border-radius: 5px 0 0 5px;
-    font-size: 0.9rem;
+    padding: 15px 20px;
+    border: 2px solid #ddd;
+    border-radius: 8px 0 0 8px;
+    font-size: 1.1rem;
+    height: 50px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    transition: border-color 0.3s;
+}
+
+.inbox-url-input:focus {
+    border-color: #007bff;
+    outline: none;
 }
 
 .copy-btn {
-    padding: 12px 20px;
+    padding: 0 25px;
     background-color: #007bff;
     color: white;
     border: none;
-    border-radius: 0 5px 5px 0;
-    font-size: 0.9rem;
+    border-radius: 0 8px 8px 0;
+    font-size: 1rem;
+    font-weight: 600;
     cursor: pointer;
     transition: background-color 0.3s;
+    height: 50px;
 }
 
 .copy-btn:hover {
