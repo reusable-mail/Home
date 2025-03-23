@@ -78,4 +78,59 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Call this function to set up the mobile menu
     createMobileMenu();
+    
+    // URL copy functionality
+    const urlInput = document.getElementById('inbox-url');
+    const copyButton = document.getElementById('copy-url-btn');
+    
+    // Copy button functionality
+    copyButton.addEventListener('click', function() {
+        if (urlInput.value.trim() !== '') {
+            // Select the text
+            urlInput.select();
+            urlInput.setSelectionRange(0, 99999); // For mobile devices
+            
+            // Copy the text to clipboard
+            navigator.clipboard.writeText(urlInput.value)
+                .then(() => {
+                    // Visual feedback that copy worked
+                    const originalText = copyButton.textContent;
+                    copyButton.textContent = 'Copied!';
+                    copyButton.style.backgroundColor = '#28a745';
+                    
+                    // Revert back after 2 seconds
+                    setTimeout(() => {
+                        copyButton.textContent = originalText;
+                        copyButton.style.backgroundColor = '#007bff';
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('Could not copy text: ', err);
+                    alert('Failed to copy. Please try manually selecting and copying the text.');
+                });
+        } else {
+            alert('Please paste a URL first');
+        }
+    });
+    
+    // Allow users to paste URL from clipboard
+    urlInput.addEventListener('click', function() {
+        if (urlInput.value === '' || urlInput.value === urlInput.placeholder) {
+            // Try to read from clipboard if input is empty
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                navigator.clipboard.readText()
+                    .then(clipText => {
+                        // Only auto-fill if it looks like a reusable.email URL
+                        if (clipText.includes('reusable.email') || 
+                            clipText.includes('private.reusable.email')) {
+                            urlInput.value = clipText;
+                        }
+                    })
+                    .catch(err => {
+                        // Silent fail - clipboard access might be denied
+                        console.log('Clipboard access denied or empty');
+                    });
+            }
+        }
+    });
 }); 

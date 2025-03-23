@@ -51,4 +51,39 @@ html, body, main, .email-service-section, .iframe-container {
 main {
     padding: 0 !important;
     margin: 0 !important;
+}
+
+/* Style for the URL container on mobile */
+.url-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 10px !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+.url-input-group {
+    display: flex !important;
+    width: 100% !important;
+    margin: 10px 0 !important;
+}
+
+.inbox-url-input {
+    flex: 1 !important;
+    font-size: 14px !important;
+    padding: 10px !important;
+    height: 40px !important;
+}
+
+.copy-btn {
+    padding: 0 15px !important;
+    height: 40px !important;
+    font-size: 14px !important;
+}
+
+.url-instructions {
+    padding: 0 10px !important;
+    margin: 5px 0 !important;
+    font-size: 14px !important;
 } 
