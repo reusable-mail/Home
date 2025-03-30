@@ -94,6 +94,14 @@ export default async function handler(req, res) {
       const data = await response.arrayBuffer();
       res.setHeader('Content-Type', contentType);
       res.status(response.status).send(Buffer.from(data));
+    } else if (contentType.includes('application/javascript') || 
+               contentType.includes('text/javascript')) {
+      // For JavaScript files
+      const js = await response.text();
+      // Process JavaScript to fix any paths or URLs
+      const processedJs = processJS(js, targetUrl);
+      res.setHeader('Content-Type', contentType);
+      res.status(response.status).send(processedJs);
     } else {
       // For all other content types
       const data = await response.arrayBuffer();
@@ -130,18 +138,34 @@ function processHtml(html, baseUrl) {
     .replace(/url\(\s*\/([^)]*)\s*\)/g, `url(${baseUrlRoot}/$1)`)
     // Fix relative URLs in CSS links
     .replace(/href="([^"]*\.css)"/g, `href="/api/proxy-email?url=${baseUrlRoot}/$1"`)
-    // Preserve inline SVG content
+    // Preserve inline SVG content (but don't HTML encode it anymore)
     .replace(/<svg([^>]*)>([\s\S]*?)<\/svg>/g, (match) => {
-      // Encode the SVG to prevent its contents from being processed
-      return match.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return match; // Keep SVGs intact
     })
     // Remove base tags that might interfere with our proxying
     .replace(/<base[^>]*>/g, '')
-    // Allow all necessary scripts but wrapped in try-catch
+    // Handle reCAPTCHA and other third-party scripts specially
+    .replace(/src="(https:\/\/www\.google\.com\/recaptcha\/[^"]*)"/g, (match, src) => {
+      // Don't proxy Google reCAPTCHA, let it load directly
+      return `src="${src}"`;
+    })
+    .replace(/src="(https:\/\/www\.gstatic\.com\/[^"]*)"/g, (match, src) => {
+      // Don't proxy Google static content
+      return `src="${src}"`;
+    })
+    .replace(/src="(https:\/\/apis\.google\.com\/[^"]*)"/g, (match, src) => {
+      // Don't proxy Google APIs
+      return `src="${src}"`;
+    })
+    // Handle other scripts
     .replace(/<script([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, content) => {
-      // If it's an external script, proxy it
+      // If it's an external script
       if (attrs.includes('src=')) {
-        return match.replace(/src="\/([^"]*)"/g, `src="${baseUrlRoot}/$1"`);
+        // If it's not already an absolute URL
+        if (!attrs.includes('src="http')) {
+          return match.replace(/src="\/([^"]*)"/g, `src="${baseUrlRoot}/$1"`);
+        }
+        return match; // Keep external script URLs as they are
       }
       
       // For inline scripts, wrap in try-catch
@@ -152,7 +176,10 @@ function processHtml(html, baseUrl) {
           console.error('Script error:', e);
         }
       </script>`;
-    });
+    })
+    // Add a special fix for captcha containers
+    .replace(/<div([^>]*)(id="captcha"|class="[^"]*captcha[^"]*")([^>]*)>/gi, 
+      '<div$1$2$3 style="min-height:100px; width:100%; display:block;">');
 }
 
 // Process CSS to fix relative URLs
@@ -165,4 +192,24 @@ function processCSS(css, baseUrl) {
     .replace(/url\(\s*['"]?\/?([^'")]+)['"]?\s*\)/g, `url(${baseUrlRoot}/$1)`)
     // Fix import statements with relative paths
     .replace(/@import\s+['"]?\/?([^'"]+)['"]?/g, `@import '${baseUrlRoot}/$1'`);
+}
+
+// Process JavaScript to handle any path or URL references
+function processJS(js, baseUrl) {
+  const urlObj = new URL(baseUrl);
+  const baseUrlRoot = `${urlObj.protocol}//${urlObj.host}`;
+  
+  // Be very careful with JavaScript processing to avoid breaking functionality
+  // Only fix obvious URL paths
+  return js
+    // Fix any hardcoded paths to the root
+    .replace(/"\/api\//g, `"${baseUrlRoot}/api/`)
+    .replace(/'\/api\//g, `'${baseUrlRoot}/api/`)
+    .replace(/=\s*['"]\/[^'"]*['"]/g, (match) => {
+      // This is a simple heuristic to avoid breaking JavaScript
+      if (match.includes('/api/') || match.includes('/static/') || match.includes('/assets/')) {
+        return match.replace(/(['"])\//, `$1${baseUrlRoot}/`);
+      }
+      return match; // Leave other paths alone
+    });
 } 

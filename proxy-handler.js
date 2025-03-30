@@ -26,14 +26,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Log the length of the content for debugging
                     console.log(`Received HTML content (${htmlContent.length} bytes)`);
                     
-                    // Fix any encoded SVG elements
-                    htmlContent = decodeEncodedElements(htmlContent);
-                    
                     // Display the content directly - the proxy API already processed it
                     emailContainer.innerHTML = htmlContent;
                     
                     // Add our own CSS to fix display issues with the proxied content
                     applyCustomStyling();
+                    
+                    // Load any external scripts like reCAPTCHA if needed
+                    loadExternalScripts();
                     
                     // Execute any necessary JavaScript for the loaded content
                     activateContent();
@@ -49,6 +49,47 @@ document.addEventListener('DOMContentLoaded', () => {
                     `;
                     document.getElementById('retry-btn').addEventListener('click', loadEmailService);
                 });
+        }
+    }
+    
+    // Function to load any external scripts that may be needed
+    function loadExternalScripts() {
+        // Check if we need to load reCAPTCHA
+        if (emailContainer.innerHTML.includes('google.com/recaptcha') || 
+            emailContainer.querySelector('.g-recaptcha') ||
+            emailContainer.querySelector('[data-sitekey]') ||
+            emailContainer.querySelector('#captcha')) {
+            
+            console.log('Detected captcha, loading reCAPTCHA script...');
+            
+            // Add the reCAPTCHA script if not already present
+            if (!document.querySelector('script[src*="recaptcha"]')) {
+                const recaptchaScript = document.createElement('script');
+                recaptchaScript.src = 'https://www.google.com/recaptcha/api.js';
+                recaptchaScript.async = true;
+                recaptchaScript.defer = true;
+                document.head.appendChild(recaptchaScript);
+                
+                // Wait for reCAPTCHA to load and try to render it
+                recaptchaScript.onload = function() {
+                    console.log('reCAPTCHA script loaded, rendering captchas...');
+                    
+                    // If grecaptcha is available, try to render any unrendered captchas
+                    if (window.grecaptcha && window.grecaptcha.render) {
+                        const captchaElements = emailContainer.querySelectorAll('.g-recaptcha:not([data-widget-id])');
+                        captchaElements.forEach((element, index) => {
+                            try {
+                                window.grecaptcha.render(element, {
+                                    sitekey: element.getAttribute('data-sitekey')
+                                });
+                                console.log(`Rendered captcha ${index}`);
+                            } catch (e) {
+                                console.error('Error rendering captcha:', e);
+                            }
+                        });
+                    }
+                };
+            }
         }
     }
     
@@ -133,10 +174,11 @@ document.addEventListener('DOMContentLoaded', () => {
             .email-container img[alt*="navigation"],
             .email-container img[alt*="Arrow"],
             .email-container img[alt*="Navigation"] {
-                display: inline-block;
-                max-width: 32px;
-                height: auto;
-                vertical-align: middle;
+                display: inline-block !important;
+                max-width: 48px !important;
+                height: auto !important;
+                margin: 0 !important;
+                vertical-align: middle !important;
             }
             
             /* Fix potential layout breaks */
@@ -159,6 +201,34 @@ document.addEventListener('DOMContentLoaded', () => {
             .email-container [style*="rotate"] {
                 transform: none !important;
             }
+            
+            /* Make captchas visible */
+            .email-container .g-recaptcha,
+            .email-container #captcha,
+            .email-container [data-sitekey],
+            .email-container iframe[src*="recaptcha"] {
+                display: block !important;
+                margin: 20px auto !important;
+                width: 302px !important;
+                height: 76px !important;
+                overflow: visible !important;
+            }
+            
+            /* Fix iframe alignments */
+            .email-container iframe {
+                max-width: 100%;
+                margin: 0 auto;
+                display: block;
+            }
+            
+            /* Ensure CAPTCHA container has enough space */
+            .email-container div[id*="captcha"],
+            .email-container div[class*="captcha"] {
+                min-height: 100px;
+                width: 100%;
+                display: block !important;
+                margin: 20px auto !important;
+            }
         `;
         
         // Append the style element to the email container
@@ -167,73 +237,50 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Function to activate any interactive elements in the loaded content
     function activateContent() {
-        // Find and handle all links to make them go through the proxy
-        const links = emailContainer.querySelectorAll('a');
-        links.forEach(link => {
-            if (link.href && !link.href.startsWith('javascript:')) {
-                link.addEventListener('click', function(e) {
-                    const href = this.getAttribute('href');
-                    
-                    // Skip handling for external links like social media, etc.
-                    if (href && href.startsWith('http') && 
-                        !href.includes('reusable.email') && 
-                        !href.includes('reusablemail.com')) {
-                        return; // Let these open normally
-                    }
-                    
-                    // Don't intercept links that already go through our proxy
-                    if (href && !href.startsWith('/api/proxy-email')) {
-                        e.preventDefault();
-                        
-                        // Show loading state
-                        emailContainer.innerHTML = '';
-                        emailContainer.appendChild(loadingSpinner);
-                        
-                        // Navigate through our proxy
-                        fetch(`/api/proxy-email?url=${encodeURIComponent(href)}`)
-                            .then(response => response.text())
-                            .then(html => {
-                                // Fix any encoded SVG elements
-                                html = decodeEncodedElements(html);
-                                emailContainer.innerHTML = html;
-                                
-                                // Apply custom styling
-                                applyCustomStyling();
-                                
-                                // Setup interactive elements
-                                activateContent();
-                                
-                                // Check for inbox URLs
-                                if (href.includes('private.reusable.email') || 
-                                    href.includes('/AACG-') || 
-                                    href.includes('/QRYD-')) {
-                                    updateUrlDisplay(href);
-                                }
-                            })
-                            .catch(error => {
-                                console.error('Error navigating:', error);
-                                emailContainer.innerHTML = `
-                                    <div class="error-message">
-                                        <h3>Error loading page</h3>
-                                        <p>${error.message}</p>
-                                        <button id="retry-nav-btn">Retry</button>
-                                    </div>
-                                `;
-                                document.getElementById('retry-nav-btn').addEventListener('click', () => {
-                                    navigateProxy(href);
-                                });
-                            });
-                    }
-                });
-            }
-        });
-        
-        // Handle forms to submit through our proxy
+        // Handle forms differently for captchas
         const forms = emailContainer.querySelectorAll('form');
         forms.forEach(form => {
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 
+                // Check if this form has a captcha
+                const hasCaptcha = form.querySelector('.g-recaptcha') || 
+                                   form.querySelector('[data-sitekey]') ||
+                                   form.querySelector('#captcha');
+                
+                if (hasCaptcha) {
+                    console.log('Form contains captcha, opening in a new tab');
+                    
+                    // For forms with captchas, we'll use a different approach:
+                    // Create a clone of the form and submit it directly to reusable.email
+                    const formClone = form.cloneNode(true);
+                    
+                    // Make sure the action is absolute
+                    let action = form.getAttribute('action') || '';
+                    if (action && !action.startsWith('http')) {
+                        action = 'https://reusable.email' + (action.startsWith('/') ? action : '/' + action);
+                    }
+                    formClone.setAttribute('action', action);
+                    
+                    // Make sure it opens in a new tab
+                    formClone.setAttribute('target', '_blank');
+                    
+                    // Hide the form and append it to the body
+                    formClone.style.display = 'none';
+                    document.body.appendChild(formClone);
+                    
+                    // Submit the form directly
+                    formClone.submit();
+                    
+                    // Remove the clone after submission
+                    setTimeout(() => {
+                        document.body.removeChild(formClone);
+                    }, 1000);
+                    
+                    return;
+                }
+                
+                // For regular forms without captchas, use our existing proxy logic
                 // Show loading state
                 emailContainer.innerHTML = '';
                 emailContainer.appendChild(loadingSpinner);
@@ -261,12 +308,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
                 .then(response => response.text())
                 .then(html => {
-                    // Fix any encoded SVG elements
-                    html = decodeEncodedElements(html);
                     emailContainer.innerHTML = html;
                     
                     // Apply custom styling
                     applyCustomStyling();
+                    
+                    // Load any external scripts like reCAPTCHA
+                    loadExternalScripts();
                     
                     // Setup interactive elements
                     activateContent();
@@ -285,6 +333,68 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
             });
+        });
+        
+        // Find and handle all links to make them go through the proxy
+        const links = emailContainer.querySelectorAll('a');
+        links.forEach(link => {
+            if (link.href && !link.href.startsWith('javascript:')) {
+                link.addEventListener('click', function(e) {
+                    const href = this.getAttribute('href');
+                    
+                    // Skip handling for external links like social media, etc.
+                    if (href && href.startsWith('http') && 
+                        !href.includes('reusable.email') && 
+                        !href.includes('reusablemail.com')) {
+                        return; // Let these open normally
+                    }
+                    
+                    // Don't intercept links that already go through our proxy
+                    if (href && !href.startsWith('/api/proxy-email')) {
+                        e.preventDefault();
+                        
+                        // Show loading state
+                        emailContainer.innerHTML = '';
+                        emailContainer.appendChild(loadingSpinner);
+                        
+                        // Navigate through our proxy
+                        fetch(`/api/proxy-email?url=${encodeURIComponent(href)}`)
+                            .then(response => response.text())
+                            .then(html => {
+                                emailContainer.innerHTML = html;
+                                
+                                // Apply custom styling
+                                applyCustomStyling();
+                                
+                                // Load any external scripts like reCAPTCHA
+                                loadExternalScripts();
+                                
+                                // Setup interactive elements
+                                activateContent();
+                                
+                                // Check for inbox URLs
+                                if (href.includes('private.reusable.email') || 
+                                    href.includes('/AACG-') || 
+                                    href.includes('/QRYD-')) {
+                                    updateUrlDisplay(href);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error navigating:', error);
+                                emailContainer.innerHTML = `
+                                    <div class="error-message">
+                                        <h3>Error loading page</h3>
+                                        <p>${error.message}</p>
+                                        <button id="retry-nav-btn">Retry</button>
+                                    </div>
+                                `;
+                                document.getElementById('retry-nav-btn').addEventListener('click', () => {
+                                    navigateProxy(href);
+                                });
+                            });
+                    }
+                });
+            }
         });
         
         // Look for inbox URLs in the content
