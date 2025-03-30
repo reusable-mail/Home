@@ -264,17 +264,65 @@ footer {
     overflow: visible; /* Allow content to be visible */
     box-shadow: none;
     position: relative;
+    background-color: white;
 }
 
 .email-container {
     width: 100%;
-    height: 700px;
+    min-height: 700px;
+    height: auto;
     border: none;
     display: block;
     margin: 0;
     padding: 0;
     overflow: auto;
     background-color: white;
+    line-height: 1.4;
+}
+
+/* Style email content better */
+.email-container a {
+    color: #007bff;
+    text-decoration: underline;
+}
+
+.email-container button, 
+.email-container .button,
+.email-container input[type="button"],
+.email-container input[type="submit"] {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    margin: 5px 0;
+    text-decoration: none;
+}
+
+.email-container table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 15px 0;
+}
+
+.email-container th,
+.email-container td {
+    padding: 8px;
+    text-align: left;
+    border: 1px solid #ddd;
+}
+
+.email-container input[type="text"],
+.email-container input[type="email"],
+.email-container input[type="password"] {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin: 5px 0;
+    width: 100%;
+    max-width: 300px;
 }
 
 /* Retain the old iframe container styles for backward compatibility */

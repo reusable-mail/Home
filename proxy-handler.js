@@ -10,22 +10,30 @@ document.addEventListener('DOMContentLoaded', () => {
             emailContainer.innerHTML = '';
             emailContainer.appendChild(loadingSpinner);
             
+            // Log the start of the fetch operation for debugging
+            console.log('Fetching email service content...');
+            
             fetch('/api/proxy-email')
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Network response was not ok');
+                        console.error('Error response from proxy:', response.status);
+                        throw new Error(`Network response was not ok: ${response.status}`);
                     }
+                    console.log('Fetch successful, processing response...');
                     return response.text();
                 })
                 .then(htmlContent => {
-                    // Process the HTML content to make it work with our site
-                    const processedHtml = processHtml(htmlContent);
-                    emailContainer.innerHTML = processedHtml;
+                    // Log the length of the content for debugging
+                    console.log(`Received HTML content (${htmlContent.length} bytes)`);
                     
-                    // Add event listeners to handle form submissions and navigation
-                    attachEventHandlers();
+                    // Display the content directly - the proxy API already processed it
+                    emailContainer.innerHTML = htmlContent;
+                    
+                    // Execute any necessary JavaScript for the loaded content
+                    activateContent();
                 })
                 .catch(error => {
+                    console.error('Fetch error:', error);
                     emailContainer.innerHTML = `
                         <div class="error-message">
                             <h3>Error loading email service</h3>
@@ -38,63 +46,112 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // Process the HTML content from the external site
-    function processHtml(html) {
-        // Create a temporary div to parse the HTML
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = html;
-        
-        // Remove any scripts to prevent conflicts
-        const scripts = tempDiv.querySelectorAll('script');
-        scripts.forEach(script => script.remove());
-        
-        // Update relative URLs to absolute ones
-        const links = tempDiv.querySelectorAll('a');
+    // Function to activate any interactive elements in the loaded content
+    function activateContent() {
+        // Find and handle all links to make them go through the proxy
+        const links = emailContainer.querySelectorAll('a');
         links.forEach(link => {
-            if (link.href && !link.href.startsWith('http')) {
-                // Handle relative links by making them go through our proxy
-                const originalHref = link.getAttribute('href');
-                if (originalHref && !originalHref.startsWith('javascript:')) {
-                    link.setAttribute('data-original-href', originalHref);
-                    link.setAttribute('href', '#');
-                    link.onclick = (e) => {
+            if (link.href && !link.href.startsWith('javascript:')) {
+                link.addEventListener('click', function(e) {
+                    const href = this.getAttribute('href');
+                    
+                    // Don't intercept links that already go through our proxy
+                    if (href && !href.startsWith('/api/proxy-email')) {
                         e.preventDefault();
-                        navigateProxy('https://reusable.email' + originalHref);
-                    };
-                }
-            }
-            
-            // Detect inbox URLs for our URL display feature
-            if (link.href && 
-                (link.href.includes('private.reusable.email') || 
-                 link.href.includes('/AACG-') || 
-                 link.href.includes('/QRYD-'))) {
-                const urlInput = document.getElementById('inbox-url');
-                if (urlInput) {
-                    urlInput.value = link.href;
-                    highlightInput();
-                }
+                        
+                        // Show loading state
+                        emailContainer.innerHTML = '';
+                        emailContainer.appendChild(loadingSpinner);
+                        
+                        // Navigate through our proxy
+                        fetch(`/api/proxy-email?url=${encodeURIComponent(href)}`)
+                            .then(response => response.text())
+                            .then(html => {
+                                emailContainer.innerHTML = html;
+                                activateContent();
+                                
+                                // Check for inbox URLs
+                                if (href.includes('private.reusable.email') || 
+                                    href.includes('/AACG-') || 
+                                    href.includes('/QRYD-')) {
+                                    updateUrlDisplay(href);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error navigating:', error);
+                                emailContainer.innerHTML = `
+                                    <div class="error-message">
+                                        <h3>Error loading page</h3>
+                                        <p>${error.message}</p>
+                                        <button id="retry-nav-btn">Retry</button>
+                                    </div>
+                                `;
+                                document.getElementById('retry-nav-btn').addEventListener('click', () => {
+                                    navigateProxy(href);
+                                });
+                            });
+                    }
+                });
             }
         });
         
-        // Update form actions to go through our proxy
-        const forms = tempDiv.querySelectorAll('form');
+        // Handle forms to submit through our proxy
+        const forms = emailContainer.querySelectorAll('form');
         forms.forEach(form => {
-            const originalAction = form.getAttribute('action') || '';
-            form.setAttribute('data-original-action', originalAction);
-            form.setAttribute('action', '#');
-            form.onsubmit = (e) => {
+            form.addEventListener('submit', function(e) {
                 e.preventDefault();
-                const formData = new FormData(form);
-                submitFormViaProxy(originalAction, formData);
-            };
+                
+                // Show loading state
+                emailContainer.innerHTML = '';
+                emailContainer.appendChild(loadingSpinner);
+                
+                // Get form data
+                const formData = new FormData(this);
+                const formObject = {};
+                formData.forEach((value, key) => {
+                    formObject[key] = value;
+                });
+                
+                // Get the form action
+                const action = this.getAttribute('action') || '';
+                
+                // Submit the form through our proxy
+                fetch('/api/proxy-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: action,
+                        formData: formObject
+                    })
+                })
+                .then(response => response.text())
+                .then(html => {
+                    emailContainer.innerHTML = html;
+                    activateContent();
+                })
+                .catch(error => {
+                    console.error('Error submitting form:', error);
+                    emailContainer.innerHTML = `
+                        <div class="error-message">
+                            <h3>Error submitting form</h3>
+                            <p>${error.message}</p>
+                            <button id="retry-form-btn">Retry</button>
+                        </div>
+                    `;
+                    document.getElementById('retry-form-btn').addEventListener('click', () => {
+                        submitForm(action, formData);
+                    });
+                });
+            });
         });
         
-        // Return the processed HTML
-        return tempDiv.innerHTML;
+        // Look for inbox URLs in the content
+        scanForInboxUrls();
     }
     
-    // Function to navigate to a different page via the proxy
+    // Function to navigate to a URL through the proxy
     function navigateProxy(url) {
         if (emailContainer) {
             emailContainer.innerHTML = '';
@@ -102,125 +159,177 @@ document.addEventListener('DOMContentLoaded', () => {
             
             fetch(`/api/proxy-email?url=${encodeURIComponent(url)}`)
                 .then(response => response.text())
-                .then(htmlContent => {
-                    const processedHtml = processHtml(htmlContent);
-                    emailContainer.innerHTML = processedHtml;
-                    attachEventHandlers();
+                .then(html => {
+                    emailContainer.innerHTML = html;
+                    activateContent();
                     
-                    // Check if URL is an inbox and update the URL display
+                    // Check if URL is an inbox and update the display
                     if (url.includes('private.reusable.email') || 
                         url.includes('/AACG-') || 
                         url.includes('/QRYD-')) {
-                        const urlInput = document.getElementById('inbox-url');
-                        if (urlInput) {
-                            urlInput.value = url;
-                            highlightInput();
-                        }
+                        updateUrlDisplay(url);
                     }
                 })
                 .catch(error => {
+                    console.error('Error navigating:', error);
                     emailContainer.innerHTML = `
                         <div class="error-message">
                             <h3>Error loading page</h3>
                             <p>${error.message}</p>
-                            <button id="retry-btn">Retry</button>
+                            <button id="retry-nav-btn">Retry</button>
                         </div>
                     `;
-                    document.getElementById('retry-btn').addEventListener('click', () => navigateProxy(url));
+                    document.getElementById('retry-nav-btn').addEventListener('click', () => {
+                        navigateProxy(url);
+                    });
                 });
         }
     }
     
-    // Function to submit a form via the proxy
-    function submitFormViaProxy(action, formData) {
-        const url = action.startsWith('http') ? action : `https://reusable.email${action}`;
-        
+    // Function to submit a form through the proxy
+    function submitForm(action, formData) {
         if (emailContainer) {
             emailContainer.innerHTML = '';
             emailContainer.appendChild(loadingSpinner);
             
-            // Convert FormData to a plain object
+            // Convert FormData to object
             const formObject = {};
             formData.forEach((value, key) => {
                 formObject[key] = value;
             });
             
-            // Send the form data via our proxy
+            // Submit the form through our proxy
             fetch('/api/proxy-email', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    url: url,
+                    url: action,
                     formData: formObject
                 })
             })
             .then(response => response.text())
-            .then(htmlContent => {
-                const processedHtml = processHtml(htmlContent);
-                emailContainer.innerHTML = processedHtml;
-                attachEventHandlers();
+            .then(html => {
+                emailContainer.innerHTML = html;
+                activateContent();
             })
             .catch(error => {
+                console.error('Error submitting form:', error);
                 emailContainer.innerHTML = `
                     <div class="error-message">
                         <h3>Error submitting form</h3>
                         <p>${error.message}</p>
-                        <button id="retry-btn">Retry</button>
+                        <button id="retry-form-btn">Retry</button>
                     </div>
                 `;
-                document.getElementById('retry-btn').addEventListener('click', () => submitFormViaProxy(action, formData));
+                document.getElementById('retry-form-btn').addEventListener('click', () => {
+                    submitForm(action, formData);
+                });
             });
         }
     }
     
-    // Highlight the URL input when a value is set
-    function highlightInput() {
-        const urlInput = document.getElementById('inbox-url');
-        if (!urlInput) return;
-        
-        // Briefly highlight input to show it was auto-filled
-        urlInput.style.backgroundColor = '#f0f9ff';
-        urlInput.style.borderColor = '#007bff';
-        
-        setTimeout(() => {
-            urlInput.style.backgroundColor = '';
-            // Keep border highlighted if there's content
-            if (!urlInput.value.trim()) {
-                urlInput.style.borderColor = '';
+    // Function to scan for inbox URLs in the content
+    function scanForInboxUrls() {
+        const textNodes = [];
+        const walker = document.createTreeWalker(
+            emailContainer,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        );
+    
+        let node;
+        while (node = walker.nextNode()) {
+            textNodes.push(node);
+        }
+    
+        for (const node of textNodes) {
+            const text = node.nodeValue;
+            if (text) {
+                if (text.includes('private.reusable.email') || 
+                    text.includes('/AACG-') || 
+                    text.includes('/QRYD-')) {
+                    
+                    const urlMatch = text.match(/(https?:\/\/private\.reusable\.email\/[^\s'"]+)/);
+                    if (urlMatch && urlMatch[1]) {
+                        updateUrlDisplay(urlMatch[1]);
+                        return;
+                    }
+                    
+                    const idMatch = text.match(/([A-Z]+-\d+-[A-Z]+)/);
+                    if (idMatch && idMatch[1]) {
+                        updateUrlDisplay(`https://private.reusable.email/${idMatch[1]}`);
+                        return;
+                    }
+                }
+                
+                const emailMatch = text.match(/([A-Z]+-\d+-[A-Z]+@private\.reusable\.email)/);
+                if (emailMatch && emailMatch[1]) {
+                    const emailParts = emailMatch[1].split('@');
+                    if (emailParts.length > 1) {
+                        updateUrlDisplay(`https://private.reusable.email/${emailParts[0]}`);
+                        return;
+                    }
+                }
             }
-        }, 1500);
+        }
     }
     
-    // Attach event handlers after content is loaded
-    function attachEventHandlers() {
-        // Add any specific event handlers for the loaded content
+    // Function to update the URL display
+    function updateUrlDisplay(url) {
+        const urlInput = document.getElementById('inbox-url');
+        if (urlInput) {
+            urlInput.value = url;
+            highlightInput(urlInput);
+        }
+    }
+    
+    // Function to highlight the URL input
+    function highlightInput(input) {
+        if (!input) return;
+        
+        input.style.backgroundColor = '#f0f9ff';
+        input.style.borderColor = '#007bff';
+        
+        setTimeout(() => {
+            input.style.backgroundColor = '';
+            if (input.value.trim()) {
+                input.style.borderColor = '#007bff';
+            } else {
+                input.style.borderColor = '';
+            }
+        }, 1500);
     }
     
     // Initial load of the email service
     loadEmailService();
     
-    // Setup URL copy functionality
+    // Add click event handler to the retry button that might appear
+    emailContainer.addEventListener('click', (e) => {
+        if (e.target.id === 'retry-btn') {
+            loadEmailService();
+        }
+    });
+    
+    // Set up URL copy functionality
     const urlInput = document.getElementById('inbox-url');
     const copyButton = document.getElementById('copy-url-btn');
     
     if (copyButton && urlInput) {
         copyButton.addEventListener('click', function() {
             if (urlInput.value.trim() !== '') {
-                // Select the text
                 urlInput.select();
-                urlInput.setSelectionRange(0, 99999); // For mobile devices
+                urlInput.setSelectionRange(0, 99999);
                 
-                // Copy the text to clipboard
                 navigator.clipboard.writeText(urlInput.value)
                     .then(() => {
-                        // Visual feedback that copy worked
+                        // Visual feedback
                         const originalText = copyButton.textContent;
                         copyButton.textContent = 'Copied!';
                         copyButton.style.backgroundColor = '#28a745';
                         
-                        // Revert back after 2 seconds
                         setTimeout(() => {
                             copyButton.textContent = originalText;
                             copyButton.style.backgroundColor = '#007bff';
