@@ -278,6 +278,7 @@ footer {
     overflow: auto;
     background-color: white;
     line-height: 1.4;
+    text-align: center;
 }
 
 /* Style email content better */
@@ -494,4 +495,72 @@ footer {
         transform: scale(0.65); /* Decrease zoom for better view */
         transform-origin: top center; /* Scale from the top center */
     }
+}
+
+/* Additional styles for the email service */
+.email-container {
+    width: 100%;
+    min-height: 700px;
+    height: auto;
+    border: none;
+    display: block;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    background-color: white;
+    line-height: 1.4;
+    text-align: center;
+}
+
+/* Fix the navigation arrows in reusable.email */
+.email-container img[alt*="arrow"],
+.email-container img[alt*="navigation"],
+.email-container img[alt*="Arrow"],
+.email-container img[alt*="Navigation"] {
+    display: inline-block !important;
+    max-width: 48px !important;
+    height: auto !important;
+    margin: 0 !important;
+    vertical-align: middle !important;
+}
+
+/* Fix the layout for reusable.email */
+.email-container div.reusable-email-content,
+.email-container > div {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    max-width: 800px !important;
+}
+
+/* Fix SVG rendering */
+.email-container svg {
+    display: inline-block !important;
+    vertical-align: middle !important;
+    max-width: 100% !important;
+}
+
+/* Fix for text oriented sideways */
+.email-container [style*="transform:"],
+.email-container [style*="rotate"] {
+    transform: none !important;
+}
+
+/* Fix for lock icons */
+.email-container img[alt*="lock"],
+.email-container img[alt*="Lock"] {
+    display: inline-block !important;
+    max-width: 64px !important;
+    height: auto !important;
+    vertical-align: middle !important;
+}
+
+/* Fix heading colors */
+.email-container h1,
+.email-container h2,
+.email-container h3 {
+    color: #333 !important;
 } 

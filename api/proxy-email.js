@@ -67,9 +67,11 @@ export default async function handler(req, res) {
     
     // Handle different response types
     if (contentType.includes('application/json')) {
+      // For JSON responses
       const data = await response.json();
       res.status(response.status).json(data);
     } else if (contentType.includes('text/html')) {
+      // For HTML responses
       const html = await response.text();
       
       // Process the HTML to fix relative URLs and other issues
@@ -78,8 +80,22 @@ export default async function handler(req, res) {
       // Send the processed HTML
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(response.status).send(processedHtml);
+    } else if (contentType.includes('text/css')) {
+      // For CSS files
+      const css = await response.text();
+      // Process CSS to fix relative URLs
+      const processedCss = processCSS(css, targetUrl);
+      res.setHeader('Content-Type', 'text/css');
+      res.status(response.status).send(processedCss);
+    } else if (contentType.includes('image/') || 
+               contentType.includes('font/') || 
+               contentType.includes('application/font')) {
+      // For binary files like images and fonts
+      const data = await response.arrayBuffer();
+      res.setHeader('Content-Type', contentType);
+      res.status(response.status).send(Buffer.from(data));
     } else {
-      // For other content types (images, etc.), pass through directly
+      // For all other content types
       const data = await response.arrayBuffer();
       res.setHeader('Content-Type', contentType);
       res.status(response.status).send(Buffer.from(data));
@@ -96,14 +112,57 @@ export default async function handler(req, res) {
 
 // Process HTML content to make it work in our proxy
 function processHtml(html, baseUrl) {
-  // Fix relative URLs
+  // Extract the base URL without the path
+  const urlObj = new URL(baseUrl);
+  const baseUrlRoot = `${urlObj.protocol}//${urlObj.host}`;
+  
+  // Fix various URL references in the HTML
   return html
     // Fix relative URLs in links
-    .replace(/href="\/([^"]*)"/g, `href="/api/proxy-email?url=${baseUrl}/$1"`)
-    // Fix relative URLs in images
-    .replace(/src="\/([^"]*)"/g, `src="${baseUrl}/$1"`)
+    .replace(/href="\/([^"]*)"/g, `href="/api/proxy-email?url=${baseUrlRoot}/$1"`)
+    // Fix absolute URLs in links to same domain
+    .replace(new RegExp(`href="${baseUrlRoot}/([^"]*)"`, 'g'), `href="/api/proxy-email?url=${baseUrlRoot}/$1"`)
+    // Fix relative URLs in images and other resources
+    .replace(/src="\/([^"]*)"/g, `src="${baseUrlRoot}/$1"`)
     // Fix relative URLs in forms
-    .replace(/action="\/([^"]*)"/g, `action="/api/proxy-email?url=${baseUrl}/$1"`)
-    // Remove any scripts that might cause issues
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    .replace(/action="\/([^"]*)"/g, `action="/api/proxy-email?url=${baseUrlRoot}/$1"`)
+    // Fix inline styles with url() references
+    .replace(/url\(\s*\/([^)]*)\s*\)/g, `url(${baseUrlRoot}/$1)`)
+    // Fix relative URLs in CSS links
+    .replace(/href="([^"]*\.css)"/g, `href="/api/proxy-email?url=${baseUrlRoot}/$1"`)
+    // Preserve inline SVG content
+    .replace(/<svg([^>]*)>([\s\S]*?)<\/svg>/g, (match) => {
+      // Encode the SVG to prevent its contents from being processed
+      return match.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    })
+    // Remove base tags that might interfere with our proxying
+    .replace(/<base[^>]*>/g, '')
+    // Allow all necessary scripts but wrapped in try-catch
+    .replace(/<script([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, content) => {
+      // If it's an external script, proxy it
+      if (attrs.includes('src=')) {
+        return match.replace(/src="\/([^"]*)"/g, `src="${baseUrlRoot}/$1"`);
+      }
+      
+      // For inline scripts, wrap in try-catch
+      return `<script${attrs}>
+        try {
+          ${content}
+        } catch (e) {
+          console.error('Script error:', e);
+        }
+      </script>`;
+    });
+}
+
+// Process CSS to fix relative URLs
+function processCSS(css, baseUrl) {
+  const urlObj = new URL(baseUrl);
+  const baseUrlRoot = `${urlObj.protocol}//${urlObj.host}`;
+  
+  return css
+    // Fix URLs in url() references
+    .replace(/url\(\s*['"]?\/?([^'")]+)['"]?\s*\)/g, `url(${baseUrlRoot}/$1)`)
+    // Fix import statements with relative paths
+    .replace(/@import\s+['"]?\/?([^'"]+)['"]?/g, `@import '${baseUrlRoot}/$1'`);
 } 

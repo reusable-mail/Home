@@ -26,8 +26,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Log the length of the content for debugging
                     console.log(`Received HTML content (${htmlContent.length} bytes)`);
                     
+                    // Fix any encoded SVG elements
+                    htmlContent = decodeEncodedElements(htmlContent);
+                    
                     // Display the content directly - the proxy API already processed it
                     emailContainer.innerHTML = htmlContent;
+                    
+                    // Add our own CSS to fix display issues with the proxied content
+                    applyCustomStyling();
                     
                     // Execute any necessary JavaScript for the loaded content
                     activateContent();
@@ -46,6 +52,119 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // Decode encoded HTML elements (like SVGs)
+    function decodeEncodedElements(html) {
+        // Replace encoded SVG tags
+        return html
+            .replace(/&lt;svg/g, '<svg')
+            .replace(/&lt;\/svg&gt;/g, '</svg>')
+            .replace(/&lt;path/g, '<path')
+            .replace(/&lt;\/path&gt;/g, '</path>')
+            .replace(/&lt;g/g, '<g')
+            .replace(/&lt;\/g&gt;/g, '</g>')
+            .replace(/&lt;rect/g, '<rect')
+            .replace(/&lt;\/rect&gt;/g, '</rect>')
+            .replace(/&lt;circle/g, '<circle')
+            .replace(/&lt;\/circle&gt;/g, '</circle>')
+            .replace(/&lt;text/g, '<text')
+            .replace(/&lt;\/text&gt;/g, '</text>')
+            .replace(/&lt;polygon/g, '<polygon')
+            .replace(/&lt;\/polygon&gt;/g, '</polygon>')
+            // Add more SVG tag replacements as needed
+            .replace(/&gt;/g, '>');
+    }
+    
+    // Apply custom styling to fix display issues
+    function applyCustomStyling() {
+        // Create a style element for custom CSS fixes
+        const style = document.createElement('style');
+        style.textContent = `
+            /* Fix layout issues */
+            .email-container * {
+                box-sizing: border-box;
+            }
+            
+            /* Fix SVG rendering */
+            .email-container svg {
+                display: inline-block;
+                max-width: 100%;
+            }
+            
+            /* Fix text that might be rotated incorrectly */
+            .email-container [style*="transform:"] {
+                transform: none !important;
+            }
+            
+            /* Ensure content is centered */
+            .email-container > div {
+                margin: 0 auto;
+            }
+            
+            /* Ensure buttons are visible */
+            .email-container button, 
+            .email-container .button,
+            .email-container a.button,
+            .email-container input[type="button"],
+            .email-container input[type="submit"] {
+                display: inline-block;
+                background-color: #007bff;
+                color: white !important;
+                text-decoration: none !important;
+                border: none;
+                padding: 8px 15px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                margin: 5px 0;
+            }
+            
+            /* Fix form input styling */
+            .email-container input[type="text"],
+            .email-container input[type="email"],
+            .email-container input[type="password"] {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                min-width: 200px;
+            }
+            
+            /* Fix navigation arrows */
+            .email-container img[alt*="arrow"],
+            .email-container img[alt*="navigation"],
+            .email-container img[alt*="Arrow"],
+            .email-container img[alt*="Navigation"] {
+                display: inline-block;
+                max-width: 32px;
+                height: auto;
+                vertical-align: middle;
+            }
+            
+            /* Fix potential layout breaks */
+            .email-container table {
+                width: auto !important;
+                margin: 0 auto;
+            }
+            
+            /* Center the email service content */
+            .email-container > div {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                max-width: 800px;
+                margin: 0 auto;
+            }
+            
+            /* Fix any rotated text */
+            .email-container [style*="rotate"] {
+                transform: none !important;
+            }
+        `;
+        
+        // Append the style element to the email container
+        emailContainer.appendChild(style);
+    }
+    
     // Function to activate any interactive elements in the loaded content
     function activateContent() {
         // Find and handle all links to make them go through the proxy
@@ -54,6 +173,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (link.href && !link.href.startsWith('javascript:')) {
                 link.addEventListener('click', function(e) {
                     const href = this.getAttribute('href');
+                    
+                    // Skip handling for external links like social media, etc.
+                    if (href && href.startsWith('http') && 
+                        !href.includes('reusable.email') && 
+                        !href.includes('reusablemail.com')) {
+                        return; // Let these open normally
+                    }
                     
                     // Don't intercept links that already go through our proxy
                     if (href && !href.startsWith('/api/proxy-email')) {
@@ -67,7 +193,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         fetch(`/api/proxy-email?url=${encodeURIComponent(href)}`)
                             .then(response => response.text())
                             .then(html => {
+                                // Fix any encoded SVG elements
+                                html = decodeEncodedElements(html);
                                 emailContainer.innerHTML = html;
+                                
+                                // Apply custom styling
+                                applyCustomStyling();
+                                
+                                // Setup interactive elements
                                 activateContent();
                                 
                                 // Check for inbox URLs
@@ -128,7 +261,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
                 .then(response => response.text())
                 .then(html => {
+                    // Fix any encoded SVG elements
+                    html = decodeEncodedElements(html);
                     emailContainer.innerHTML = html;
+                    
+                    // Apply custom styling
+                    applyCustomStyling();
+                    
+                    // Setup interactive elements
                     activateContent();
                 })
                 .catch(error => {
@@ -160,7 +300,14 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch(`/api/proxy-email?url=${encodeURIComponent(url)}`)
                 .then(response => response.text())
                 .then(html => {
+                    // Fix any encoded SVG elements
+                    html = decodeEncodedElements(html);
                     emailContainer.innerHTML = html;
+                    
+                    // Apply custom styling
+                    applyCustomStyling();
+                    
+                    // Setup interactive elements
                     activateContent();
                     
                     // Check if URL is an inbox and update the display
@@ -211,7 +358,14 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(response => response.text())
             .then(html => {
+                // Fix any encoded SVG elements
+                html = decodeEncodedElements(html);
                 emailContainer.innerHTML = html;
+                
+                // Apply custom styling
+                applyCustomStyling();
+                
+                // Setup interactive elements
                 activateContent();
             })
             .catch(error => {
