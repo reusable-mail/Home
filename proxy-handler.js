@@ -26,8 +26,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Log the length of the content for debugging
                     console.log(`Received HTML content (${htmlContent.length} bytes)`);
                     
-                    // Display the content directly - the proxy API already processed it
-                    emailContainer.innerHTML = htmlContent;
+                    // Process content to handle captchas properly before displaying
+                    const processedContent = processContentForCaptcha(htmlContent);
+                    
+                    // Display the content
+                    emailContainer.innerHTML = processedContent;
                     
                     // Add our own CSS to fix display issues with the proxied content
                     applyCustomStyling();
@@ -52,6 +55,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // Process content to handle captchas properly
+    function processContentForCaptcha(html) {
+        // Don't modify Cloudflare or reCAPTCHA scripts
+        html = html.replace(/<script\s+src=["'](https:\/\/challenges\.cloudflare\.com\/[^"']+)["'][^>]*>/gi, 
+            '<script src="$1" crossorigin="anonymous" async></script>');
+        
+        html = html.replace(/<script\s+src=["'](https:\/\/www\.google\.com\/recaptcha\/[^"']+)["'][^>]*>/gi, 
+            '<script src="$1" async defer></script>');
+            
+        html = html.replace(/<script\s+src=["'](https:\/\/www\.gstatic\.com\/[^"']+)["'][^>]*>/gi, 
+            '<script src="$1" async></script>');
+        
+        // Ensure captcha containers are properly displayed
+        html = html.replace(/<div([^>]*)(id=["']captcha["']|class=["'][^"']*captcha[^"']*["'])([^>]*)>/gi, 
+            '<div$1$2$3 style="min-height:120px; width:100%; display:block; margin:20px auto;">');
+            
+        // Make sure turnstile widget containers are properly displayed
+        html = html.replace(/<div([^>]*)(id=["']turnstile-container["']|class=["']turnstile-container["'])([^>]*)>/gi,
+            '<div$1$2$3 style="min-height:150px; width:100%; display:block; margin:20px auto;">');
+            
+        return html;
+    }
+    
     // Function to load any external scripts that may be needed
     function loadExternalScripts() {
         // Check if we need to load reCAPTCHA
@@ -69,26 +95,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 recaptchaScript.async = true;
                 recaptchaScript.defer = true;
                 document.head.appendChild(recaptchaScript);
-                
-                // Wait for reCAPTCHA to load and try to render it
-                recaptchaScript.onload = function() {
-                    console.log('reCAPTCHA script loaded, rendering captchas...');
-                    
-                    // If grecaptcha is available, try to render any unrendered captchas
-                    if (window.grecaptcha && window.grecaptcha.render) {
-                        const captchaElements = emailContainer.querySelectorAll('.g-recaptcha:not([data-widget-id])');
-                        captchaElements.forEach((element, index) => {
-                            try {
-                                window.grecaptcha.render(element, {
-                                    sitekey: element.getAttribute('data-sitekey')
-                                });
-                                console.log(`Rendered captcha ${index}`);
-                            } catch (e) {
-                                console.error('Error rendering captcha:', e);
-                            }
-                        });
-                    }
-                };
+            }
+        }
+        
+        // Check if we need to load Cloudflare Turnstile
+        if (emailContainer.innerHTML.includes('challenges.cloudflare.com') || 
+            emailContainer.querySelector('.cf-turnstile') ||
+            emailContainer.querySelector('[data-sitekey][data-action="cf-turnstile"]') ||
+            emailContainer.querySelector('#cf-turnstile-response')) {
+            
+            console.log('Detected Cloudflare Turnstile, loading script...');
+            
+            // Add the Cloudflare Turnstile script if not already present
+            if (!document.querySelector('script[src*="challenges.cloudflare.com"]')) {
+                const turnstileScript = document.createElement('script');
+                turnstileScript.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+                turnstileScript.async = true;
+                turnstileScript.defer = true;
+                document.head.appendChild(turnstileScript);
             }
         }
     }
@@ -206,11 +230,23 @@ document.addEventListener('DOMContentLoaded', () => {
             .email-container .g-recaptcha,
             .email-container #captcha,
             .email-container [data-sitekey],
-            .email-container iframe[src*="recaptcha"] {
+            .email-container iframe[src*="recaptcha"],
+            .email-container iframe[src*="challenges.cloudflare.com"] {
                 display: block !important;
                 margin: 20px auto !important;
                 width: 302px !important;
-                height: 76px !important;
+                min-height: 76px !important;
+                overflow: visible !important;
+            }
+            
+            /* Ensure proper space for Cloudflare captcha */
+            .email-container .cf-turnstile,
+            .email-container iframe[src*="cloudflare"],
+            .email-container [data-action="cf-turnstile"] {
+                display: block !important;
+                margin: 20px auto !important;
+                width: 300px !important;
+                height: 65px !important;
                 overflow: visible !important;
             }
             
@@ -223,11 +259,20 @@ document.addEventListener('DOMContentLoaded', () => {
             
             /* Ensure CAPTCHA container has enough space */
             .email-container div[id*="captcha"],
-            .email-container div[class*="captcha"] {
-                min-height: 100px;
+            .email-container div[class*="captcha"],
+            .email-container #turnstile-container,
+            .email-container .turnstile-container {
+                min-height: 120px;
                 width: 100%;
                 display: block !important;
                 margin: 20px auto !important;
+            }
+            
+            /* Style specifically for the checkbox */
+            .email-container .cf-checkbox-label {
+                display: flex !important;
+                align-items: center !important;
+                cursor: pointer !important;
             }
         `;
         
@@ -246,12 +291,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Check if this form has a captcha
                 const hasCaptcha = form.querySelector('.g-recaptcha') || 
                                    form.querySelector('[data-sitekey]') ||
-                                   form.querySelector('#captcha');
+                                   form.querySelector('#captcha') ||
+                                   form.querySelector('.cf-turnstile') ||
+                                   form.querySelector('#turnstile-container');
                 
                 if (hasCaptcha) {
                     console.log('Form contains captcha, opening in a new tab');
                     
-                    // For forms with captchas, we'll use a different approach:
                     // Create a clone of the form and submit it directly to reusable.email
                     const formClone = form.cloneNode(true);
                     

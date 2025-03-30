@@ -124,8 +124,49 @@ function processHtml(html, baseUrl) {
   const urlObj = new URL(baseUrl);
   const baseUrlRoot = `${urlObj.protocol}//${urlObj.host}`;
   
-  // Fix various URL references in the HTML
-  return html
+  // First, preserve all third-party scripts and iframes before processing other content
+  const captchaScripts = [];
+  const captchaIframes = [];
+  const turnstileScripts = [];
+  
+  // Extract and preserve Cloudflare and Google reCAPTCHA scripts/iframes
+  html = html.replace(/<script\s+src=["'](https:\/\/challenges\.cloudflare\.com\/[^"']+)["'][^>]*>([\s\S]*?)<\/script>/gi, 
+    (match, src) => {
+      const id = `captcha-script-${captchaScripts.length}`;
+      captchaScripts.push({id, src, isCloudflare: true});
+      return `<!--${id}-->`;
+    });
+    
+  html = html.replace(/<script\s+src=["'](https:\/\/www\.google\.com\/recaptcha\/[^"']+)["'][^>]*>([\s\S]*?)<\/script>/gi, 
+    (match, src) => {
+      const id = `captcha-script-${captchaScripts.length}`;
+      captchaScripts.push({id, src, isGoogle: true});
+      return `<!--${id}-->`;
+    });
+  
+  html = html.replace(/<script\s+src=["'](https:\/\/www\.gstatic\.com\/[^"']+)["'][^>]*>([\s\S]*?)<\/script>/gi,
+    (match, src) => {
+      const id = `captcha-script-${captchaScripts.length}`;
+      captchaScripts.push({id, src, isGstatic: true});
+      return `<!--${id}-->`;
+    });
+  
+  html = html.replace(/<iframe\s+src=["'](https:\/\/challenges\.cloudflare\.com\/[^"']+)["'][^>]*>([\s\S]*?)<\/iframe>/gi,
+    (match, src) => {
+      const id = `captcha-iframe-${captchaIframes.length}`;
+      captchaIframes.push({id, src, isCloudflare: true});
+      return `<!--${id}-->`;
+    });
+  
+  html = html.replace(/<iframe\s+src=["'](https:\/\/www\.google\.com\/recaptcha\/[^"']+)["'][^>]*>([\s\S]*?)<\/iframe>/gi,
+    (match, src) => {
+      const id = `captcha-iframe-${captchaIframes.length}`;
+      captchaIframes.push({id, src, isGoogle: true});
+      return `<!--${id}-->`;
+    });
+  
+  // Process all other URLs and content
+  html = html
     // Fix relative URLs in links
     .replace(/href="\/([^"]*)"/g, `href="/api/proxy-email?url=${baseUrlRoot}/$1"`)
     // Fix absolute URLs in links to same domain
@@ -138,27 +179,21 @@ function processHtml(html, baseUrl) {
     .replace(/url\(\s*\/([^)]*)\s*\)/g, `url(${baseUrlRoot}/$1)`)
     // Fix relative URLs in CSS links
     .replace(/href="([^"]*\.css)"/g, `href="/api/proxy-email?url=${baseUrlRoot}/$1"`)
-    // Preserve inline SVG content (but don't HTML encode it anymore)
+    // Preserve inline SVG content
     .replace(/<svg([^>]*)>([\s\S]*?)<\/svg>/g, (match) => {
       return match; // Keep SVGs intact
     })
     // Remove base tags that might interfere with our proxying
     .replace(/<base[^>]*>/g, '')
-    // Handle reCAPTCHA and other third-party scripts specially
-    .replace(/src="(https:\/\/www\.google\.com\/recaptcha\/[^"]*)"/g, (match, src) => {
-      // Don't proxy Google reCAPTCHA, let it load directly
-      return `src="${src}"`;
-    })
-    .replace(/src="(https:\/\/www\.gstatic\.com\/[^"]*)"/g, (match, src) => {
-      // Don't proxy Google static content
-      return `src="${src}"`;
-    })
-    .replace(/src="(https:\/\/apis\.google\.com\/[^"]*)"/g, (match, src) => {
-      // Don't proxy Google APIs
-      return `src="${src}"`;
-    })
-    // Handle other scripts
+    // Handle normal scripts
     .replace(/<script([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, content) => {
+      // Skip if this is a captcha script (already processed)
+      if (attrs.includes('src="https://challenges.cloudflare.com') || 
+          attrs.includes('src="https://www.google.com/recaptcha') ||
+          attrs.includes('src="https://www.gstatic.com/')) {
+        return match;
+      }
+      
       // If it's an external script
       if (attrs.includes('src=')) {
         // If it's not already an absolute URL
@@ -177,9 +212,37 @@ function processHtml(html, baseUrl) {
         }
       </script>`;
     })
-    // Add a special fix for captcha containers
-    .replace(/<div([^>]*)(id="captcha"|class="[^"]*captcha[^"]*")([^>]*)>/gi, 
-      '<div$1$2$3 style="min-height:100px; width:100%; display:block;">');
+    // Enhance captcha containers for better visibility
+    .replace(/<div([^>]*)(id="captcha"|class="[^"]*captcha[^"]*"|class="[^"]*cf-turnstile[^"]*"|id="turnstile-container")([^>]*)>/gi, 
+      '<div$1$2$3 style="min-height:120px; width:100%; max-width:320px; margin:20px auto; display:block;">');
+  
+  // Put back the preserved third-party scripts and iframes
+  captchaScripts.forEach(script => {
+    const attributes = [];
+    if (script.isCloudflare) {
+      attributes.push('async', 'crossorigin="anonymous"');
+    } else if (script.isGoogle) {
+      attributes.push('async defer');
+    } else if (script.isGstatic) {
+      attributes.push('async');
+    }
+    
+    html = html.replace(`<!--${script.id}-->`, 
+      `<script src="${script.src}" ${attributes.join(' ')}></script>`);
+  });
+  
+  captchaIframes.forEach(iframe => {
+    const attributes = [];
+    if (iframe.isCloudflare || iframe.isGoogle) {
+      attributes.push('style="height:70px; width:300px; border:none;"');
+      attributes.push('allow="cross-origin-isolated"');
+    }
+    
+    html = html.replace(`<!--${iframe.id}-->`, 
+      `<iframe src="${iframe.src}" ${attributes.join(' ')}></iframe>`);
+  });
+  
+  return html;
 }
 
 // Process CSS to fix relative URLs
