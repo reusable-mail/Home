@@ -11,6 +11,56 @@
     <!-- Favicon links -->
     <link rel="icon" href="email.svg" type="image/svg+xml">
     <link rel="alternate icon" href="favicon.ico" type="image/x-icon">
+    <style>
+        /* Loading spinner styles */
+        .loading-spinner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            height: 400px;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            text-align: center;
+            padding: 40px;
+            background-color: #fff8f8;
+            border: 1px solid #ffdddd;
+            border-radius: 8px;
+            margin: 20px;
+        }
+        
+        .error-message h3 {
+            color: #e74c3c;
+            margin-bottom: 15px;
+        }
+        
+        .error-message button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -31,18 +81,12 @@
         <section id="email-service" class="email-service-section">
             <h2>Our Email Service</h2>
             <p>Access our disposable email service directly from this website:</p>
-            <div class="iframe-container">
-                <iframe 
-                    src="https://reusable.email/" 
-                    width="100%" 
-                    height="700px" 
-                    title="Reusable Email Service"
-                    frameborder="0"
-                    scrolling="yes"
-                    style="display: block; border: none; margin: 0; padding: 0; width: 100%; min-width: 100%; box-sizing: border-box;"
-                    sandbox="allow-scripts allow-forms allow-same-origin allow-popups"
-                    allowfullscreen>
-                </iframe>
+            
+            <!-- Replace iframe with a div for the proxy content -->
+            <div class="email-container-wrapper">
+                <div id="email-container" class="email-container">
+                    <!-- Content will be loaded here via JavaScript -->
+                </div>
             </div>
             
             <!-- URL display and copy section -->
@@ -102,5 +146,6 @@
     </footer>
 
     <script src="script.js"></script>
+    <script src="proxy-handler.js"></script>
 </body>
 </html> 

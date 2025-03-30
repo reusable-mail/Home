@@ -1,5 +1,5 @@
 /* Mobile-only styles to ensure edge-to-edge display */
-html, body, main, .email-service-section, .iframe-container {
+html, body, main, .email-service-section, .iframe-container, .email-container-wrapper {
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
@@ -11,7 +11,7 @@ html, body, main, .email-service-section, .iframe-container {
     position: static !important;
 }
 
-.iframe-container {
+.iframe-container, .email-container-wrapper {
     width: 100vw !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
@@ -30,6 +30,17 @@ html, body, main, .email-service-section, .iframe-container {
     height: 800px !important; /* Increase height to show more content */
 }
 
+/* Style for the email container */
+.email-container {
+    width: 100% !important;
+    height: 800px !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    overflow: auto !important;
+}
+
 /* For extra small devices - scale even more */
 @media (max-width: 400px) {
     .iframe-container iframe {
@@ -37,6 +48,10 @@ html, body, main, .email-service-section, .iframe-container {
         margin-left: -40% !important; /* Center the wider content */
         transform: scale(0.55) !important; /* Scale down more */
         height: 900px !important; /* More height for small screens */
+    }
+    
+    .email-container {
+        height: 900px !important;
     }
 }
 
